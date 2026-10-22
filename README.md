@@ -1,6 +1,16 @@
-# ccm — plusieurs comptes Claude Code
+<p align="center">
+  <img src="assets/logo.svg" width="112" height="112" alt="">
+</p>
 
-Changer de compte Claude Code sans se reconnecter, en gardant les mêmes conversations.
+<h1 align="center">ccm</h1>
+
+<p align="center">
+  Changer de compte Claude Code sans se reconnecter, en gardant les mêmes conversations.
+</p>
+
+<p align="center">
+  <img src="assets/demo.svg" width="760" alt="ccm add pro, puis ccm list qui affiche trois comptes avec leur email et leur usage de la session et de la semaine, puis ccm pro -c">
+</p>
 
 ```sh
 ccm add pro          # une fois par compte
@@ -63,4 +73,4 @@ zsh test/ccm_test.zsh
 
 ## Licence
 
-[MIT](LICENSE)
+[MIT](LICENSE). Projet indépendant, sans lien avec Anthropic.
