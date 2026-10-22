@@ -3,20 +3,20 @@
   <defs>
     <clipPath id="a"><circle cx="53" cy="57" r="17"/></clipPath>
   </defs>
-  <rect width="1280" height="640" fill="#15171E"/>
+  <rect width="1280" height="640" fill="#262624"/>
   <g transform="translate(96 150) scale(2.75)">
-    <path d="M38 24h52a18 18 0 0 1 18 18v30a18 18 0 0 1-18 18H52l-17 14a3 3 0 0 1-5-2.3V89.4A18 18 0 0 1 20 72V42a18 18 0 0 1 18-18z" fill="#F4F1EA"/>
-    <circle cx="53" cy="57" r="17" fill="#7C6CF2"/>
-    <circle cx="75" cy="57" r="17" fill="#2FBF9F"/>
-    <circle cx="75" cy="57" r="17" fill="#15171E" clip-path="url(#a)"/>
+    <path d="M38 24h52a18 18 0 0 1 18 18v30a18 18 0 0 1-18 18H52l-17 14a3 3 0 0 1-5-2.3V89.4A18 18 0 0 1 20 72V42a18 18 0 0 1 18-18z" fill="#F3EEE3"/>
+    <circle cx="53" cy="57" r="17" fill="#D97757"/>
+    <circle cx="75" cy="57" r="17" fill="#E9C08F"/>
+    <circle cx="75" cy="57" r="17" fill="#262624" clip-path="url(#a)"/>
   </g>
   <g font-family="JetBrainsMono Nerd Font, JetBrains Mono, monospace">
-    <text x="500" y="268" font-size="128" font-weight="700" fill="#F4F1EA">ccm</text>
-    <text x="504" y="336" font-size="34" fill="#A9AEBA">Plusieurs comptes Claude Code,</text>
-    <text x="504" y="382" font-size="34" fill="#A9AEBA">les mêmes conversations.</text>
-    <rect x="500" y="420" width="262" height="64" rx="12" fill="#1F222B" stroke="#2A2D37"/>
-    <text x="526" y="462" font-size="28" xml:space="preserve"><tspan fill="#2FBF9F">$</tspan><tspan fill="#F4F1EA"> ccm pro -c</tspan></text>
-    <text x="96" y="574" font-size="22" fill="#6B7180">macOS · zsh · MIT</text>
-    <text x="1184" y="574" font-size="22" fill="#6B7180" text-anchor="end">github.com/freezer71/ccm</text>
+    <text x="500" y="268" font-size="128" font-weight="700" fill="#F3EEE3">ccm</text>
+    <text x="504" y="336" font-size="34" fill="#B5B0A6">Plusieurs comptes Claude Code,</text>
+    <text x="504" y="382" font-size="34" fill="#B5B0A6">les mêmes conversations.</text>
+    <rect x="500" y="420" width="262" height="64" rx="12" fill="#30302D" stroke="#3A3936"/>
+    <text x="526" y="462" font-size="28" xml:space="preserve"><tspan fill="#D97757">$</tspan><tspan fill="#F3EEE3"> ccm pro -c</tspan></text>
+    <text x="96" y="574" font-size="22" fill="#7D7870">macOS · zsh · MIT</text>
+    <text x="1184" y="574" font-size="22" fill="#7D7870" text-anchor="end">github.com/freezer71/ccm</text>
   </g>
 </svg>

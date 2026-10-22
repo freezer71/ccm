@@ -1,17 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="860" height="336" viewBox="0 0 860 336">
   <title>ccm : ajouter un compte, voir l'usage de chacun, reprendre une conversation</title>
-  <rect width="860" height="336" rx="14" fill="#15171E"/>
-  <rect x="0.5" y="0.5" width="859" height="335" rx="13.5" fill="none" stroke="#2A2D37"/>
-  <circle cx="26" cy="24" r="6" fill="#3A3E4A"/><circle cx="46" cy="24" r="6" fill="#3A3E4A"/><circle cx="66" cy="24" r="6" fill="#3A3E4A"/>
-  <text x="430" y="29" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, 'JetBrains Mono', monospace" font-size="13" fill="#6B7180">zsh</text>
+  <rect width="860" height="336" rx="14" fill="#262624"/>
+  <rect x="0.5" y="0.5" width="859" height="335" rx="13.5" fill="none" stroke="#3A3936"/>
+  <circle cx="26" cy="24" r="6" fill="#4A4844"/><circle cx="46" cy="24" r="6" fill="#4A4844"/><circle cx="66" cy="24" r="6" fill="#4A4844"/>
+  <text x="430" y="29" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, 'JetBrains Mono', monospace" font-size="13" fill="#7D7870">zsh</text>
   <g font-family="ui-monospace, 'SF Mono', Menlo, Consolas, 'JetBrains Mono', monospace" font-size="15" xml:space="preserve">
-    <text x="28" y="84"><tspan fill="#2FBF9F">$ </tspan><tspan fill="#F4F1EA">ccm add pro</tspan></text>
-    <text x="28" y="108"><tspan fill="#A9AEBA">Compte « pro » ajouté. Lancez « ccm pro » et connectez-vous une seule fois.</tspan></text>
-    <text x="28" y="156"><tspan fill="#2FBF9F">$ </tspan><tspan fill="#F4F1EA">ccm list</tspan></text>
-    <text x="28" y="180"><tspan fill="#6B7180">COMPTE       EMAIL                     SESSION          SEMAINE</tspan></text>
-    <text x="28" y="204"><tspan fill="#9D90FF">main         </tspan><tspan fill="#A9AEBA">moi@exemple.fr            10% → 19:50      42% → lun. 05:00</tspan></text>
-    <text x="28" y="228"><tspan fill="#9D90FF">pro          </tspan><tspan fill="#A9AEBA">moi@entreprise.fr         61% → 16:40      14% → mer. 19:00</tspan></text>
-    <text x="28" y="252"><tspan fill="#9D90FF">client       </tspan><tspan fill="#A9AEBA">moi@client.fr             réinit.          88% → ven. 04:00   </tspan><tspan fill="#6B7180">(il y a 2 h)</tspan></text>
-    <text x="28" y="300"><tspan fill="#2FBF9F">$ </tspan><tspan fill="#F4F1EA">ccm pro -c</tspan><tspan fill="#6B7180">     # reprend la conversation, sur le compte « pro »</tspan></text>
+    <text x="28" y="84"><tspan fill="#D97757">$ </tspan><tspan fill="#F3EEE3">ccm add pro</tspan></text>
+    <text x="28" y="108"><tspan fill="#B5B0A6">Compte « pro » ajouté. Lancez « ccm pro » et connectez-vous une seule fois.</tspan></text>
+    <text x="28" y="156"><tspan fill="#D97757">$ </tspan><tspan fill="#F3EEE3">ccm list</tspan></text>
+    <text x="28" y="180"><tspan fill="#7D7870">COMPTE       EMAIL                     SESSION          SEMAINE</tspan></text>
+    <text x="28" y="204"><tspan fill="#E9C08F">main         </tspan><tspan fill="#B5B0A6">moi@exemple.fr            10% → 19:50      42% → lun. 05:00</tspan></text>
+    <text x="28" y="228"><tspan fill="#E9C08F">pro          </tspan><tspan fill="#B5B0A6">moi@entreprise.fr         61% → 16:40      14% → mer. 19:00</tspan></text>
+    <text x="28" y="252"><tspan fill="#E9C08F">client       </tspan><tspan fill="#B5B0A6">moi@client.fr             réinit.          88% → ven. 04:00   </tspan><tspan fill="#7D7870">(il y a 2 h)</tspan></text>
+    <text x="28" y="300"><tspan fill="#D97757">$ </tspan><tspan fill="#F3EEE3">ccm pro -c</tspan><tspan fill="#7D7870">     # reprend la conversation, sur le compte « pro »</tspan></text>
   </g>
 </svg>
