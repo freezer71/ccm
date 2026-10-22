@@ -250,6 +250,9 @@ cmd_run() {
 }
 
 init
+# Profils copiés depuis ~/.claude.json (serveurs MCP) et relevés d'usage :
+# lisibles par soi seul. Pas de umask, que `claude` hériterait.
+chmod 700 $CCM_HOME
 case ${1-help} in
   help|-h|--help) usage ;;
   add)       shift; cmd_add "$@" ;;

@@ -53,6 +53,7 @@ check() { # check <description> <commande...>
 setup
 
 check "add crée un profil"                $CCM add pro
+check "~/.ccm n'est lisible que par soi"  test "$(stat -f %Lp $CCM_HOME)" = 700
 dir=$(real $CCM_HOME/profiles/pro)
 check "projects est partagé"              test "$(real $dir/projects)" = "$(real $CCM_SHARED/projects)"
 check "history.jsonl est partagé"         test "$(readlink $dir/history.jsonl)" = "$CCM_SHARED/history.jsonl"
