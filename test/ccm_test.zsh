@@ -87,6 +87,16 @@ check "list affiche l'usage de la semaine" eval "$CCM list | grep travail | grep
 check "session expirée = réinitialisée"   eval "$CCM list | grep travail | grep -q 'réinit'"
 check "list affiche l'âge du relevé"       eval "$CCM list | grep travail | grep -q 'il y a 2 h'"
 check "pas d'usage = tiret"               eval "$CCM list | grep main | grep -q ' — '"
+# Colonne SESSION au même caractère en en-tête et sous « (pas connecté) ».
+col() { local LC_ALL=en_US.UTF-8 l=$1; l=${l%%$2*}; print ${#l} }
+aligned() {
+  local LC_ALL=en_US.UTF-8 out=("${(@f)$(env -u LANG -u LC_ALL $CCM list)}") nc
+  nc=${(M)out:#*pas connecté*}
+  [[ -n $nc ]] && (( $(col $out[1] SESSION) == $(col $nc —) ))
+}
+print -r -- '{}' > $T/vide.json && cp $dir/.claude.json $T/pro.json && cp $T/vide.json $dir/.claude.json
+check "colonnes alignées malgré les accents" aligned
+cp $T/pro.json $dir/.claude.json
 
 # Usage en direct : jeton lu dans le trousseau, envoyé à l'API d'usage.
 calls() { grep -c "^-sS" $LOG.curl 2>/dev/null || print 0 }

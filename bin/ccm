@@ -182,8 +182,15 @@ refresh_usage() {
 }
 
 # Une ligne du tableau, sans espaces en fin de ligne quand la note est vide.
+# Complétée en caractères, pas en octets comme printf : « é » compte pour un.
 print_row() {
-  local line=$(printf '%-12s %-32s %-16s %-18s %s' "$@")
+  local LC_ALL=en_US.UTF-8 widths=(12 32 16 18) line= cell w
+  for w in $widths; do
+    cell=$1; shift
+    # Une cellule trop longue n'est pas coupée, juste suivie d'un espace.
+    if (( ${#cell} < w )); then line+="${(r:w+1:)cell}"; else line+="$cell "; fi
+  done
+  line+=$*
   print -r -- "${line%"${line##*[^ ]}"}"
 }
 
