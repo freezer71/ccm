@@ -1,0 +1,260 @@
+#!/bin/zsh
+# ccm — plusieurs comptes Claude Code, une seule fois connecté par compte,
+# et les mêmes conversations partagées entre tous.
+emulate -L zsh
+setopt no_unset pipe_fail
+
+CCM_HOME=${CCM_HOME:-$HOME/.ccm}
+CCM_SHARED=${CCM_SHARED:-$HOME/.claude}
+CCM_SECURITY=${CCM_SECURITY:-security}
+USAGE_URL=https://api.anthropic.com/api/oauth/usage
+USAGE_TTL=${CCM_USAGE_TTL:-60}   # secondes avant de redemander l'usage d'un compte
+USAGE_DIR=$CCM_HOME/usage
+PROFILES=$CCM_HOME/profiles
+ACCOUNTS=$CCM_HOME/accounts
+
+RESERVED=(add list ls rm remove rename mv help)
+
+# Ce qui est commun à tous les comptes. Tout le reste (connexion, profil du
+# compte, caches) reste propre à chaque compte.
+SHARED_DIRS=(projects file-history todos plans plugins skills commands hooks agents output-styles)
+SHARED_FILES=(history.jsonl settings.json CLAUDE.md keybindings.json)
+
+die() { print -ru2 -- "ccm: $*"; exit 1 }
+
+usage() {
+  cat <<'EOF'
+ccm — changer de compte Claude Code sans se reconnecter
+
+  ccm <nom> [options claude]   lance Claude Code sur ce compte (ex. ccm pro -c)
+  ccm add <nom>                ajoute un compte (connexion à la première utilisation)
+  ccm list                     liste les comptes et leur email
+  ccm rename <ancien> <nouveau>
+  ccm rm <nom>                 supprime le compte et sa connexion (pas les conversations)
+
+Les conversations, l'historique, CLAUDE.md, settings.json, plugins, skills,
+hooks, commandes et agents sont partagés entre tous les comptes.
+Le compte « main » est votre ~/.claude habituel.
+EOF
+}
+
+# Crée « main » au tout premier usage : c'est la connexion déjà en place.
+init() {
+  [[ -d $PROFILES ]] && return
+  mkdir -p $PROFILES $ACCOUNTS
+  ln -s $CCM_SHARED $PROFILES/main
+}
+
+check_name() {
+  [[ $1 =~ '^[A-Za-z0-9][A-Za-z0-9_-]*$' ]] || die "nom invalide : « $1 » (lettres, chiffres, - et _)"
+  (( ${RESERVED[(Ie)$1]} )) && die "« $1 » est un nom réservé"
+  return 0
+}
+
+profile_dir() {
+  [[ -e $PROFILES/$1 ]] || die "compte inconnu : « $1 » (voir ccm list)"
+  print -r -- ${${:-$PROFILES/$1}:A}
+}
+
+is_default() { [[ $1 == ${CCM_SHARED:A} ]] }
+
+# Fichier où Claude Code garde le profil du compte (email, organisation…).
+account_json() {
+  if is_default $1; then print -r -- $HOME/.claude.json; else print -r -- $1/.claude.json; fi
+}
+
+# Nom de l'entrée du trousseau macOS où Claude Code range la connexion d'un
+# dossier de configuration.
+keychain_service() {
+  if is_default $1; then print -r -- "Claude Code-credentials"; return; fi
+  print -r -- "Claude Code-credentials-$(print -rn -- $1 | shasum -a 256 | cut -c1-8)"
+}
+
+link_shared() {
+  local dir=$1 item
+  for item in $SHARED_DIRS; do
+    mkdir -p $CCM_SHARED/$item
+    [[ -e $dir/$item || -L $dir/$item ]] || ln -s $CCM_SHARED/$item $dir/$item
+  done
+  for item in $SHARED_FILES; do
+    # Un lien vers un fichier absent est créé à la première écriture.
+    [[ -e $dir/$item || -L $dir/$item ]] || ln -s $CCM_SHARED/$item $dir/$item
+  done
+}
+
+cmd_add() {
+  (( $# == 1 )) || die "usage : ccm add <nom>"
+  check_name $1
+  [[ -e $PROFILES/$1 || -L $PROFILES/$1 ]] && die "le compte « $1 » existe déjà"
+
+  local dir=$ACCOUNTS/${$(uuidgen):l}
+  mkdir -p $dir
+  link_shared $dir
+
+  # Évite l'écran d'accueil et reprend les serveurs MCP de l'utilisateur.
+  print -r -- '{"hasCompletedOnboarding":true}' > $dir/.claude.json
+  local mcp
+  if mcp=$(plutil -extract mcpServers json -o - $HOME/.claude.json 2>/dev/null); then
+    plutil -insert mcpServers -json $mcp $dir/.claude.json
+  fi
+
+  ln -s $dir $PROFILES/$1
+  print -r -- "Compte « $1 » ajouté. Lancez « ccm $1 » et connectez-vous une seule fois."
+}
+
+json_get() { plutil -extract $2 raw $1 2>/dev/null }
+
+# Usage d'une fenêtre (five_hour, seven_day) lu dans un JSON sous le
+# chemin $2 : « 34% → 22:50 ».
+usage_cell() {
+  local json=$1 base=$2 fmt=$3 pct reset epoch
+  pct=$(json_get $json $base.utilization) || { print -r -- "—"; return }
+  # Pas d'heure de réinitialisation : aucune fenêtre ouverte en ce moment.
+  reset=$(json_get $json $base.resets_at) || { printf '%.0f%%\n' $pct; return }
+  epoch=$(date -j -u -f '%Y-%m-%dT%H:%M:%S' ${reset[1,19]} +%s 2>/dev/null) || { printf '%.0f%%\n' $pct; return }
+  if (( epoch <= EPOCHSECONDS )); then
+    print -r -- "réinit."
+  else
+    printf '%.0f%% → %s\n' $pct "$(LC_TIME=fr_FR.UTF-8 date -r $epoch +$fmt)"
+  fi
+}
+
+# « il y a 5 min », « il y a 2 h » pour un instant en secondes ; rien si le
+# relevé est en direct.
+age_text() {
+  local secs=$(( EPOCHSECONDS - $1 ))
+  if (( secs < USAGE_TTL )); then return
+  elif (( secs < 3600 )); then print -r -- "il y a $(( secs / 60 )) min"
+  elif (( secs < 86400 )); then print -r -- "il y a $(( secs / 3600 )) h"
+  else print -r -- "il y a $(( secs / 86400 )) j"
+  fi
+}
+
+# Fichiers de cache d'usage de ccm pour un compte. La clé suit l'entrée du
+# trousseau, donc elle survit à un renommage.
+usage_key() {
+  local service=$(keychain_service $1)
+  print -r -- $USAGE_DIR/${service//[^A-Za-z0-9-]/_}
+}
+
+mtime() { stat -f %m $1 2>/dev/null }
+
+# Met à jour le cache d'usage d'un compte en interrogeant l'API, sauf si le
+# cache a moins de USAGE_TTL secondes ou si l'API a demandé d'attendre (429).
+# Le jeton du compte est lu dans le trousseau ; ccm ne le renouvelle jamais,
+# Claude Code le fait au lancement du compte.
+refresh_usage() {
+  local dir=$1 key creds token expires code wait_s m
+  key=$(usage_key $dir)
+  m=$(mtime $key.json) && (( EPOCHSECONDS - m < USAGE_TTL )) && return
+  [[ -f $key.retry ]] && (( $(<$key.retry) > EPOCHSECONDS )) && return
+
+  creds=$($CCM_SECURITY find-generic-password -s "$(keychain_service $dir)" -w 2>/dev/null) || return
+  token=$(print -r -- $creds | plutil -extract claudeAiOauth.accessToken raw -o - - 2>/dev/null) || return
+  expires=$(print -r -- $creds | plutil -extract claudeAiOauth.expiresAt raw -o - - 2>/dev/null) || return
+  if (( expires / 1000 <= EPOCHSECONDS )); then : > $key.expired; return; fi
+  rm -f $key.expired
+
+  # Le jeton passe par l'entrée standard pour ne jamais apparaître dans `ps`.
+  code=$(print -r -- "Authorization: Bearer $token" |
+    curl -sS -m 5 -H @- -H 'anthropic-beta: oauth-2025-04-20' \
+      -D $key.headers -o $key.body -w '%{http_code}' $USAGE_URL 2>/dev/null)
+  if [[ $code == 200 ]] && json_get $key.body five_hour.utilization >/dev/null; then
+    mv $key.body $key.json && rm -f $key.retry
+  elif [[ $code == 429 ]]; then
+    wait_s=$(grep -i '^retry-after:' $key.headers | tr -dc 0-9)
+    print -r -- $(( EPOCHSECONDS + ${wait_s:-300} )) > $key.retry
+  fi
+  rm -f $key.body $key.headers
+}
+
+# Une ligne du tableau, sans espaces en fin de ligne quand la note est vide.
+print_row() {
+  local line=$(printf '%-12s %-32s %-16s %-18s %s' "$@")
+  print -r -- "${line%"${line##*[^ ]}"}"
+}
+
+cmd_list() {
+  zmodload zsh/datetime
+  local p dir json key email src prefix age note claude_at ccm_at
+  mkdir -p $USAGE_DIR
+
+  # Une requête par compte (chacun son jeton), toutes lancées en même temps.
+  for p in $PROFILES/*(N@); do refresh_usage ${p:A} & done
+  wait
+
+  print_row COMPTE EMAIL SESSION SEMAINE ""
+  for p in $PROFILES/*(N@); do
+    dir=${p:A}
+    json=$(account_json $dir)
+    key=$(usage_key $dir)
+    email=$(json_get $json oauthAccount.emailAddress) || email="(pas connecté)"
+
+    # Le relevé le plus récent entre celui de ccm et celui de Claude Code.
+    ccm_at=$(mtime $key.json) || ccm_at=0
+    claude_at=$(( $(json_get $json cachedUsageUtilization.fetchedAtMs || print 0) / 1000 ))
+    if (( ccm_at == 0 && claude_at == 0 )); then
+      src=$json prefix=none. age=
+    elif (( ccm_at >= claude_at )); then
+      src=$key.json prefix= age=$(age_text $ccm_at)
+    else
+      src=$json prefix=cachedUsageUtilization.utilization. age=$(age_text $claude_at)
+    fi
+    # Une note seulement quand l'usage affiché n'est pas en direct.
+    note=$age
+    [[ -f $key.expired ]] && note+="${note:+ · }jeton expiré"
+    [[ -n $note ]] && note="($note)"
+
+    print_row ${p:t} $email "$(usage_cell $src ${prefix}five_hour %H:%M)" \
+      "$(usage_cell $src ${prefix}seven_day '%a %H:%M')" $note
+  done
+}
+
+cmd_rename() {
+  (( $# == 2 )) || die "usage : ccm rename <ancien> <nouveau>"
+  profile_dir $1 >/dev/null
+  check_name $2
+  [[ -e $PROFILES/$2 || -L $PROFILES/$2 ]] && die "le compte « $2 » existe déjà"
+  # Seul le nom change : le dossier, donc la connexion, reste le même.
+  mv $PROFILES/$1 $PROFILES/$2
+}
+
+cmd_rm() {
+  (( $# == 1 )) || die "usage : ccm rm <nom>"
+  local dir
+  dir=$(profile_dir $1) || exit 1
+  rm $PROFILES/$1
+  if is_default $dir; then
+    print -r -- "Nom « $1 » retiré. ~/.claude et sa connexion ne sont pas touchés."
+    return
+  fi
+  $CCM_SECURITY delete-generic-password -s "$(keychain_service $dir)" >/dev/null 2>&1
+  local key=$(usage_key $dir)
+  rm -f $key.*(N)
+  # Les liens partagés sont supprimés, pas ce vers quoi ils pointent.
+  rm -rf -- $dir
+  print -r -- "Compte « $1 » supprimé. Les conversations sont conservées."
+}
+
+cmd_run() {
+  local dir
+  dir=$(profile_dir $1) || exit 1
+  shift
+  if is_default $dir; then
+    unset CLAUDE_CONFIG_DIR
+  else
+    link_shared $dir
+    export CLAUDE_CONFIG_DIR=$dir
+  fi
+  exec claude "$@"
+}
+
+init
+case ${1-help} in
+  help|-h|--help) usage ;;
+  add)       shift; cmd_add "$@" ;;
+  list|ls)   cmd_list ;;
+  rename|mv) shift; cmd_rename "$@" ;;
+  rm|remove) shift; cmd_rm "$@" ;;
+  *)         cmd_run "$@" ;;
+esac
