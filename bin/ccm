@@ -45,14 +45,17 @@ init() {
   ln -s $CCM_SHARED $PROFILES/main
 }
 
+valid_name() { [[ $1 =~ '^[A-Za-z0-9][A-Za-z0-9_-]*$' ]] }
+
 check_name() {
-  [[ $1 =~ '^[A-Za-z0-9][A-Za-z0-9_-]*$' ]] || die "nom invalide : « $1 » (lettres, chiffres, - et _)"
+  valid_name $1 || die "nom invalide : « $1 » (lettres, chiffres, - et _)"
   (( ${RESERVED[(Ie)$1]} )) && die "« $1 » est un nom réservé"
   return 0
 }
 
 profile_dir() {
-  [[ -e $PROFILES/$1 ]] || die "compte inconnu : « $1 » (voir ccm list)"
+  # Un nom n'est jamais un chemin : « ccm rm ../../Documents » est refusé.
+  valid_name $1 && [[ -L $PROFILES/$1 && -e $PROFILES/$1 ]] || die "compte inconnu : « $1 » (voir ccm list)"
   print -r -- ${${:-$PROFILES/$1}:A}
 }
 
@@ -92,17 +95,25 @@ cmd_add() {
   link_shared $dir
 
   # Évite l'écran d'accueil et reprend les serveurs MCP de l'utilisateur.
-  print -r -- '{"hasCompletedOnboarding":true}' > $dir/.claude.json
-  local mcp
-  if mcp=$(plutil -extract mcpServers json -o - $HOME/.claude.json 2>/dev/null); then
-    plutil -insert mcpServers -json $mcp $dir/.claude.json
+  # Les serveurs MCP peuvent contenir des clés : ils passent par un fichier,
+  # jamais en argument, où `ps` les montrerait.
+  local mcp=$dir/.mcp-servers.json
+  if plutil -extract mcpServers json -o $mcp $HOME/.claude.json 2>/dev/null; then
+    { print -rn -- '{"hasCompletedOnboarding":true,"mcpServers":'; cat $mcp; print -r -- '}' } > $dir/.claude.json
+  else
+    print -r -- '{"hasCompletedOnboarding":true}' > $dir/.claude.json
   fi
+  rm -f $mcp
 
   ln -s $dir $PROFILES/$1
   print -r -- "Compte « $1 » ajouté. Lancez « ccm $1 » et connectez-vous une seule fois."
 }
 
 json_get() { plutil -extract $2 raw $1 2>/dev/null }
+
+# Un entier, ou échec. Toute valeur lue (fichier, trousseau, API) passe par
+# là avant un calcul : zsh exécuterait « a[$(cmd)] » dans (( … )).
+int_or_fail() { [[ $1 == <-> ]] && print -r -- $1 }
 
 # Usage d'une fenêtre (five_hour, seven_day) lu dans un JSON sous le
 # chemin $2 : « 34% → 22:50 ».
@@ -147,11 +158,13 @@ refresh_usage() {
   local dir=$1 key creds token expires code wait_s m
   key=$(usage_key $dir)
   m=$(mtime $key.json) && (( EPOCHSECONDS - m < USAGE_TTL )) && return
-  [[ -f $key.retry ]] && (( $(<$key.retry) > EPOCHSECONDS )) && return
+  local until
+  [[ -f $key.retry ]] && until=$(int_or_fail "$(<$key.retry)") && (( until > EPOCHSECONDS )) && return
 
   creds=$($CCM_SECURITY find-generic-password -s "$(keychain_service $dir)" -w 2>/dev/null) || return
   token=$(print -r -- $creds | plutil -extract claudeAiOauth.accessToken raw -o - - 2>/dev/null) || return
   expires=$(print -r -- $creds | plutil -extract claudeAiOauth.expiresAt raw -o - - 2>/dev/null) || return
+  expires=$(int_or_fail $expires) || return
   if (( expires / 1000 <= EPOCHSECONDS )); then : > $key.expired; return; fi
   rm -f $key.expired
 
@@ -192,7 +205,8 @@ cmd_list() {
 
     # Le relevé le plus récent entre celui de ccm et celui de Claude Code.
     ccm_at=$(mtime $key.json) || ccm_at=0
-    claude_at=$(( $(json_get $json cachedUsageUtilization.fetchedAtMs || print 0) / 1000 ))
+    claude_at=$(int_or_fail "$(json_get $json cachedUsageUtilization.fetchedAtMs)") || claude_at=0
+    claude_at=$(( claude_at / 1000 ))
     if (( ccm_at == 0 && claude_at == 0 )); then
       src=$json prefix=none. age=
     elif (( ccm_at >= claude_at )); then
@@ -223,7 +237,10 @@ cmd_rm() {
   (( $# == 1 )) || die "usage : ccm rm <nom>"
   local dir
   dir=$(profile_dir $1) || exit 1
-  rm $PROFILES/$1
+  if ! is_default $dir && [[ $dir != ${ACCOUNTS:A}/* ]]; then
+    die "« $1 » ne pointe pas vers un dossier de compte ccm ($dir) : rien n'est supprimé"
+  fi
+  rm $PROFILES/$1 || exit 1
   if is_default $dir; then
     print -r -- "Nom « $1 » retiré. ~/.claude et sa connexion ne sont pas touchés."
     return

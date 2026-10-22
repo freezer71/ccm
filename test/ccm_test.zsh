@@ -59,6 +59,7 @@ check "projects est partagé"              test "$(real $dir/projects)" = "$(rea
 check "history.jsonl est partagé"         test "$(readlink $dir/history.jsonl)" = "$CCM_SHARED/history.jsonl"
 check "settings.json est partagé"         test -L $dir/settings.json
 check "les serveurs MCP sont copiés"      grep -q '"m"' $dir/.claude.json
+check "le profil est un JSON valide"      plutil -convert xml1 -o /dev/null $dir/.claude.json
 
 $CCM pro -c --model opus
 check "lance claude avec le bon dossier"  grep -qx "CONFIG=$dir" $LOG
@@ -117,6 +118,29 @@ check "refuse un nom réservé"            eval "! $CCM add list"
 check "refuse un nom invalide"            eval "! $CCM add 'a b'"
 check "refuse un doublon"                 eval "! $CCM add travail"
 check "refuse un profil inconnu"          eval "! $CCM inconnu"
+
+# Un nom n'est jamais un chemin, et rm ne supprime qu'un dossier de compte.
+mkdir -p $HOME/Victime && touch $HOME/Victime/important
+check "rm refuse un chemin"               eval "! $CCM rm ../../home/Victime"
+check "rm ne supprime rien hors des comptes" test -f $HOME/Victime/important
+check "lancer refuse un chemin"           eval "! $CCM ../../home/Victime"
+ln -s $HOME/Victime $CCM_HOME/profiles/piege
+check "rm refuse un lien hors des comptes" eval "! $CCM rm piege"
+check "le dossier visé est intact"        test -f $HOME/Victime/important
+rm $CCM_HOME/profiles/piege
+
+# Une valeur lue dans un fichier n'est jamais exécutée par un calcul zsh.
+rm -rf $CCM_HOME/usage && mkdir -p $CCM_HOME/usage
+print -r -- 'path[$(touch '$T'/PWNED1)]' > $CCM_HOME/usage/Claude_Code-credentials.retry
+cp $dir/.claude.json $T/claude.json.bak
+print -r -- '{"cachedUsageUtilization":{"fetchedAtMs":"path[$(touch '$T'/PWNED2)]"}}' > $dir/.claude.json
+export FAKE_CREDS='{"claudeAiOauth":{"accessToken":"x","expiresAt":"path[$(touch '$T'/PWNED3)]"}}'
+$CCM list >/dev/null 2>&1
+unset FAKE_CREDS
+check "retry : pas d'exécution"           test ! -e $T/PWNED1
+check "fetchedAtMs : pas d'exécution"     test ! -e $T/PWNED2
+check "expiresAt : pas d'exécution"       test ! -e $T/PWNED3
+mv $T/claude.json.bak $dir/.claude.json
 
 check "rm supprime le profil"             $CCM rm travail
 check "le dossier du compte est supprimé" test ! -e $dir
